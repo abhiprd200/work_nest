@@ -1,0 +1,88 @@
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- GLOBAL HELPER FUNCTIONS ---
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isExistingOwner(userId) {
+      return resource != null && isOwner(userId);
+    }
+
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+
+    function isParticipant(data) {
+      return isSignedIn() && (request.auth.uid == data.userId || request.auth.uid == data.serviceProfessionalId);
+    }
+
+    // --- COLLECTION RULES ---
+
+    match /userProfiles/{userId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    match /userProfiles/{userId}/serviceRequests/{serviceRequestId} {
+      allow get, list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    match /serviceProfessionals/{professionalId} {
+      allow get, list: if true;
+      allow create: if isOwner(professionalId) && request.resource.data.id == professionalId;
+      allow update: if isExistingOwner(professionalId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(professionalId);
+    }
+
+    match /serviceProfessionals/{serviceProfessionalId}/reviews/{reviewId} {
+      allow get, list: if true;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if resource != null && resource.data.userId == request.auth.uid;
+      allow delete: if resource != null && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    match /platform_reviews/{reviewId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource != null && resource.data.userId == request.auth.uid;
+    }
+
+    match /serviceCategories/{categoryId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /appointments/{appointmentId} {
+      allow get, list: if isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.serviceProfessionalId == request.auth.uid);
+      allow create: if isSignedIn() && (request.resource.data.userId == request.auth.uid || request.resource.data.serviceProfessionalId == request.auth.uid);
+      allow update: if resource != null && isParticipant(resource.data);
+      allow delete: if resource != null && isParticipant(resource.data);
+    }
+
+    match /payments/{paymentId} {
+      allow get, list: if isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.serviceProfessionalId == request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if resource != null && isParticipant(resource.data);
+      allow delete: if false;
+    }
+
+    match /roles_admin/{adminId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+  }
+}

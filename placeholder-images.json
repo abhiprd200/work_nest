@@ -1,0 +1,126 @@
+
+"use client";
+
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Bell, User, LogOut, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { WorkNestLogo } from '@/components/worknest/logo';
+import { useFirebase, useUser } from '@/firebase';
+import { signOut } from 'firebase/auth';
+import { useToast } from '@/hooks/use-toast';
+import { useState } from 'react';
+
+interface NavbarProps {
+  role: 'user' | 'worker';
+}
+
+export function Navbar({ role }: NavbarProps) {
+  const router = useRouter();
+  const { auth } = useFirebase();
+  const { user } = useUser();
+  const { toast } = useToast();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await signOut(auth);
+      toast({
+        title: "Logged out",
+        description: "You have been successfully signed out.",
+      });
+      router.push('/');
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Logout failed",
+        description: error.message,
+      });
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
+
+  return (
+    <header className="px-4 lg:px-6 h-16 flex items-center border-b bg-white sticky top-0 z-50">
+      <Link href="/">
+        <WorkNestLogo />
+      </Link>
+      
+      <nav className="ml-10 hidden md:flex gap-8">
+        <Link 
+          href={`/dashboard/${role}`} 
+          className="text-sm font-bold text-muted-foreground hover:text-primary transition-colors"
+        >
+          Dashboard
+        </Link>
+        <Link 
+          href={`/dashboard/${role}/appointments`} 
+          className="text-sm font-bold text-muted-foreground hover:text-primary transition-colors"
+        >
+          {role === 'user' ? 'My Bookings' : 'My Schedule'}
+        </Link>
+      </nav>
+
+      <div className="ml-auto flex items-center gap-4">
+        <Button variant="ghost" size="icon" className="relative rounded-full hover:bg-muted">
+          <Bell className="h-5 w-5" />
+          <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-accent rounded-full border-2 border-white" />
+        </Button>
+        
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0 overflow-hidden ring-2 ring-transparent hover:ring-primary/20 transition-all">
+              <Avatar className="h-10 w-10">
+                <AvatarFallback className="bg-primary/10 text-primary font-black">
+                  {user?.email?.charAt(0).toUpperCase() || (role === 'user' ? 'U' : 'P')}
+                </AvatarFallback>
+              </Avatar>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-64 mt-2 p-2 rounded-xl shadow-xl" align="end" forceMount>
+            <DropdownMenuLabel className="font-normal p-3">
+              <div className="flex flex-col space-y-1">
+                <p className="text-sm font-black leading-none text-primary uppercase tracking-wider">
+                  {role === 'user' ? 'Homeowner' : 'Professional'}
+                </p>
+                <p className="text-xs leading-none text-muted-foreground font-semibold truncate">
+                  {user?.email || "Account Settings"}
+                </p>
+              </div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator className="mx-2" />
+            <DropdownMenuItem asChild className="p-3 rounded-lg focus:bg-primary/5 cursor-pointer">
+              <Link href="/profile">
+                <User className="mr-3 h-4 w-4 text-primary" />
+                <span className="font-bold">Profile Settings</span>
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator className="mx-2" />
+            <DropdownMenuItem 
+              onClick={handleLogout}
+              className="p-3 rounded-lg focus:bg-destructive/5 text-destructive cursor-pointer"
+            >
+              {isLoggingOut ? (
+                <Loader2 className="mr-3 h-4 w-4 animate-spin" />
+              ) : (
+                <LogOut className="mr-3 h-4 w-4" />
+              )}
+              <span className="font-bold">Log out</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </header>
+  );
+}
